@@ -4,10 +4,13 @@ P2Ptest$P2PtestMSISDN<-as.character(P2Ptest$P2PtestMSISDN)
 #replace na to blanks or other value
 df[is.na(df)] <- ""
 df[df == "NA"] <- ""
+
 #skip columns
 read.csv(file = "result1", sep = " ")[ ,1:2]
+
 #Remove "-"Sign
 dailyP2M$DEST_COMM1 <- abs(dailyP2M$DEST_COMM1)
+
 #Delete rows with conditions
 d<-d[!(d$A=="B" & d$E==0),]
 
@@ -41,6 +44,7 @@ write.csv(Login_Nov, file ="C:/Users/CP666383/Desktop/Work Work Work/Request/Len
 Login_Nov$ï..LOGIN_COUNTcat[Login_Nov$ï..LOGIN_COUNT>50 & Login_Nov$ï..LOGIN_COUNT <= 30]="<=30"
 Login_Nov$ï..LOGIN_COUNTcat[Login_Nov$ï..LOGIN_COUNT>60 & Login_Nov$ï..LOGIN_COUNT <= 30]="<=30"
 Login_Nov$ï..LOGIN_COUNTcat[Login_Nov$ï..LOGIN_COUNT>70 & Login_Nov$ï..LOGIN_COUNT <= 30]="<=30"
+
 #Pulling of data containing certain conditions in column
 Login <- subset(MTD_Users, Type == "Login")
 
@@ -48,7 +52,6 @@ Login <- subset(MTD_Users, Type == "Login")
 
 #Replacing Text or numbers in a string/Column, by conditions in that, or other columns
 library(data.table)
-	
 DT = as.data.table(df)
 DT[b==0, est := (a-5)/2.533]
 
@@ -61,7 +64,8 @@ MGM$Transaction.Date<-as.Date(MGM$Transaction.Date,format = "%d/%m/%Y")
 MGM$Validation[which(MGM$Sign.up.Date.of.Referee==MGM$Transaction.Date)]<-"Yes"
 MGM$Validation <-ifelse(MGM$Sign.up.Date.of.Referee==MGM$Transaction.Date,"Yes","No")
 
-
+#Getting the total Count by counting number of rows
+loginonlycount<- data.frame(nrow(loginonly))
 
 
 
