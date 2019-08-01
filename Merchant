@@ -1,0 +1,136 @@
+# Dependencies
+rm(list=ls())
+library(readxl)
+library(dplyr)
+library(taskscheduleR)
+
+#myscript <- "C:\\Users\\CP666383\\Desktop\\Automation\\p2m.R"
+#taskscheduler_create(taskname="p2mscript",rscript=myscript,schedule="ONCE",starttime="19:01")
+
+
+# Binding
+
+#merchantvisualisation_aug <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/merchantvisualisation_aug.csv")
+#Merchantvisualisation_Sep_2018 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Sep_2018.csv")
+#Merchantvisualisation_Oct_2018 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Oct_2018.csv")
+#Merchantvisualisation_Nov_2018 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Nov_2018.csv")
+#Merchantvisualisation_Dec_2018 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Dec_2018.csv")
+#Merchantvisualisation_Jan_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Jan_2019.csv")
+Merchantvisualisation_Feb_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Feb_2019.csv")
+Merchantvisualisation_Mar_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Mar_2019.csv")
+Merchantvisualisation_Apr_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Apr_2019.csv")
+Merchantvisualisation_May_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_May_2019.csv")
+Merchantvisualisation_June_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_June_2019.csv")
+Merchantvisualisation_Jul_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Jul_2019.csv")
+
+
+#merchantvisualisation_today <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/merchantvisualisation_today.csv")
+
+merchantvisualisation<- rbind(Merchantvisualisation_Feb_2019,Merchantvisualisation_Mar_2019, Merchantvisualisation_Apr_2019,Merchantvisualisation_May_2019,Merchantvisualisation_June_2019,Merchantvisualisation_Jul_2019)
+
+write.csv(merchantvisualisation,file= "C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation.csv")
+
+#Now Run Code---------------------------------------------------------------------------------
+
+# Read data from SQL csv file
+merchantvisualisation <- read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation.csv")
+#Making Brand Name Upper case (Reason: There were some cases where Brand Names were the same 
+#but due to case sensitive issues, not able to match)
+merchantData <- mutate(merchantvisualisation, BRND_NAME_UPCASE = toupper(BRND_NAME))
+
+
+# Read metadata (This is the list of all Merchants)
+merchantMapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/0. Reporting Master List.xlsx", "Merchant Listing")
+merchantMapping <- select(merchantMapping, `Merchant Name`:`Merchant`)
+# Read metadata (This is the list of all Cashin Channels)
+cashinMapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/0. Reporting Master List.xlsx", "Cashin Channels")[,1:2]
+#Renaming column titles to Merchant Name & Merchant
+colnames(cashinMapping) <- c("Merchant Name", "Merchant")
+#Merging merchant and cashin to a single table
+fullMerchantMapping <- rbind(merchantMapping, cashinMapping)
+#Renaming column titles to Merchant Name & Merchant
+colnames(fullMerchantMapping) <- c("Merchant Name", "Channel")
+# Removing any duplicates
+fullMerchantMapping <- fullMerchantMapping[!duplicated(fullMerchantMapping$`Merchant Name`),]
+#Merchant Name to make it to CAPS to match with Brand Name
+fullMerchantMapping <- mutate(fullMerchantMapping, `Merchant Name` = toupper(`Merchant Name`))
+
+# Read metadata (This is the list of all Outlets)
+outletMapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/0. Reporting Master List.xlsx", "Outlet Listing")
+#Extracting only MSISDN & Outlet columns 
+outletMapping <- select(outletMapping, MSISDN, Outlet)
+#Deduplicating any duplicate MSISDN values
+outletMapping <- outletMapping[!duplicated(outletMapping$MSISDN),]
+
+# Read metadata (This is the list of all P2P Test MSISDN)
+p2pTestMSISDN <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/0. Reporting Master List.xlsx", "P2P Test MSISDN")
+#Add in column labelled as P2P Test with yes as values
+p2pTestMSISDN <- mutate(p2pTestMSISDN, `P2P Test` = "Yes")
+#Converting MSISDN as characters
+p2pTestMSISDN <- mutate(p2pTestMSISDN, `MSISDN` = as.character(MSISDN))
+#Removing duplicates for MSISDN
+p2pTestMSISDN <- p2pTestMSISDN[!duplicated(p2pTestMSISDN),]
+
+
+# Join metadata(nerchant & outlet) to SQL csv file
+mappedMerchantData <- left_join(merchantData, fullMerchantMapping, by = c("BRND_NAME_UPCASE" = "Merchant Name"))
+mappedMerchantData <- left_join(mappedMerchantData, outletMapping, by = c("DEST_MSISDN" = "MSISDN"))
+
+#Converting ACCT_MSISDN as character
+mappedMerchantData <- mutate(mappedMerchantData, `ACCT_MSISDN` = as.character(`ACCT_MSISDN`))
+# Join metadata(p2ptestmsisdn) with SQL file
+mappedMerchantData <- left_join(mappedMerchantData, p2pTestMSISDN, by = c("ACCT_MSISDN" = "MSISDN"))
+#If P2P Test is NA to be relabelled to 'No'
+mappedMerchantData["P2P Test"][is.na(mappedMerchantData["P2P Test"])] <- "No"
+
+
+# Get unmapped brands/Channels (Those with Channels=NA)
+unmappedMerchantData <- filter(mappedMerchantData, is.na(Channel) & CRD_AMT >=0.1)
+unmappedMerchantData<- data.frame(unique(unmappedMerchantData$BRND_NAME))
+
+#Obtaining P2M Value
+# Create pivot
+dailyP2M <- filter(mappedMerchantData, CRD_AMT >=0.1 & (SVC_CLASS_NAME == "P2M" | SVC_CLASS_NAME == "P2M Pinless"))
+dailyP2M$Channel[dailyP2M$Channel=="Samsui"] <- dailyP2M$Outlet[dailyP2M$Channel=="Samsui"]
+dailyP2MPivot <- summarize(group_by(dailyP2M, Channel), Count = n(), CREDIT_SUM = sum(CRD_AMT))
+dailyP2MPivot<- dailyP2MPivot[,c(1,3,4,2)]
+
+
+# Obtaining P2M Value
+P2MTotal <- summarize(dailyP2M, Count = n(), CREDIT_SUM = sum(CRD_AMT))
+
+# P2M Outlet
+P2MOutlet <- filter(mappedMerchantData, `Outlet` == "The Cafe at FFW")
+P2MOutlet <- filter(mappedMerchantData, CRD_AMT >= 0.1)
+P2MOutlet <- summarize(group_by(dailyP2M, DEST_MSISDN), Count = n(), CREDIT_SUM = sum(CRD_AMT))
+
+# MDR Pivot table
+MDR <- filter(mappedMerchantData, ORIG_AMT >= 0.1 & DATA_TXN_RFND == 'False' & (SVC_CLASS_NAME == "P2M" | SVC_CLASS_NAME == "P2M Pinless"))
+MDRPivot <- summarize(group_by(MDR, Channel), Count = n(), SUM_DEST_COMM = sum(DEST_COMM1))
+MDRPivot<- MDRPivot[,c(1,3,4,2)]
+
+# Refunds Pivot table
+Refunds <- filter(MDR, SVC_CLASS_NAME == "P2M" | SVC_CLASS_NAME == "P2M Pinless")
+
+# Cashbin Pivot table
+cashbin <- filter(mappedMerchantData, SVC_CLASS_NAME == "P2P")
+cashbin <- filter(cashbin, `P2P Test` == "No")
+cashbin <- summarize(cashbin, ORIG_AMT_COUNT = n(), ORIG_AMT_SUM = sum(ORIG_AMT))
+  
+# Remove X
+dailyP2M[1:1] <-list(NULL)
+
+#Remove "-"Sign
+dailyP2M$DEST_COMM1 <- abs(dailyP2M$DEST_COMM1)
+
+# Remove Test Txn
+dailyP2M<-dailyP2M[!(dailyP2M$Channel=="N/A"),]
+
+rm("cashbin","cashinMapping","fullMerchantMapping","mappedMerchantData","MDR","MDRPivot","merchantData","merchantMapping","merchantvisualisation","outletMapping","P2MOutlet","P2MTotal","p2pTestMSISDN","Refunds")
+
+
+#Write to csv unmapped merchants- TO CHECK AND ADD IN REPORTING MASTER LIST
+write.csv(unmappedMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/p2m/nap2mmerchants.csv")
+
+# Exporting data files into csv format
+write.csv(dailyP2M, file="C:/Users/CP666383/Desktop/Power BI Reports/p2m/dailyP2Mvisualisation.csv")
