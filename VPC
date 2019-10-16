@@ -74,7 +74,6 @@ vpc_Oct_19$TXN_DT <- format(vpc_Oct_19$TXN_DT, "%Y/%m/%d")
 #                                    order by txn_dt desc
 #                                    "))
 
-
 #Date Formating
 #vpc_Aug_19$TXN_DT <- strptime(as.character(vpc_Aug_19$TXN_DT), "%Y-%m-%d")
 #vpc_Aug_19$TXN_DT <- format(vpc_Aug_19$TXN_DT, "%Y/%m/%d")
