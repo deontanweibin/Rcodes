@@ -1,0 +1,714 @@
+#Run SQL query on below and save as vpcvisualisation.csv
+#	SELECT *
+#  FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+#WHERE STAT in ('PST','SBM')
+#AND TXN_DT between to_date('12-Apr-2018','DD-Mon-YY') and to_date('13-Apr 2018','DD-Mon-YY')
+#and orig_amt > 0
+#and brnd_id IN ('311','312','112','111','3720','3721')
+
+
+#Now Run Code-----------------------------------------------------------------------------------------------------------------------------------------
+
+rm(list=ls())
+options(java.parameters = "-Xmx8048m")
+library(RJDBC)
+library(dbplyr)
+library(dplyr)
+library(sqldf)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(reshape2)
+library(xlsx)
+library(data.table)
+library(splitstackshape)
+library(taskscheduleR)
+
+#rbinding
+#vpc_Jan_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jan19.csv", stringsAsFactors = FALSE)
+#vpc_Feb_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/feb19.csv", stringsAsFactors = FALSE)
+#vpc_Mar_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/mar19.csv", stringsAsFactors = FALSE)
+vpc_Apr_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/apr19.csv", stringsAsFactors = FALSE)
+vpc_May_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/may19.csv", stringsAsFactors = FALSE)
+vpc_Jun_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jun19.csv", stringsAsFactors = FALSE)
+firsthalfvpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/1sthalfjul19.csv", stringsAsFactors = FALSE)
+secondhalfvpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/2ndhalfjul19.csv", stringsAsFactors = FALSE)
+vpc_Aug_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/aug19.csv", stringsAsFactors = FALSE)
+vpc_Sep_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/sep19.csv", stringsAsFactors = FALSE)
+#vpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jul19.csv", stringsAsFactors = FALSE)
+
+
+#set up Oracle driver for live connection with Oracle SQL developer (please adjust filepath below to your desktop's)
+jdbcDriver <- JDBC("oracle.jdbc.OracleDriver", classPath = "C:\\Users\\CP666383\\Downloads\\ojdbc6.jar")
+
+#pull out all tables available as sense-check
+conn <- dbConnect(jdbcDriver, "jdbc:oracle:thin:@//dw6prd-scan.app.vic:1831/EDWPRD", "dshdm", "ds1dm_99")
+dbListTables(conn)
+
+
+vpc_Oct_19 <- dbGetQuery(conn, paste("SELECT *
+                                     FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+                                     WHERE STAT in ('PST','SBM')
+                                     AND txn_dt BETWEEN trunc (sysdate, 'mm')/*current month*/ AND SYSDATE
+                                     AND orig_amt > 0.09
+                                     AND brnd_id IN ('311','312','313','314','315','316','112','111','3720','3721','317','318','319','320')
+                                     order by txn_dt desc
+                                     "))
+
+vpc_Oct_19$TXN_DT <- strptime(as.character(vpc_Oct_19$TXN_DT), "%Y-%m-%d")
+vpc_Oct_19$TXN_DT <- format(vpc_Oct_19$TXN_DT, "%Y/%m/%d")
+
+#write.csv(vpc_Oct_19, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/oct19.csv", row.names = FALSE)
+#Previous Month------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Date Formating
+#vpc_Aug_19$TXN_DT <- strptime(as.character(vpc_Sep_19$TXN_DT), "%Y-%m-%d")
+#vpc_Aug_19$TXN_DT <- format(vpc_Sep_19$TXN_DT, "%Y/%m/%d")
+
+#vpc_Aug_19 <- dbGetQuery(conn, paste("SELECT *
+#                                     FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+#                                    WHERE STAT in ('PST','SBM')
+#                                    AND TXN_DT between to_date('01-Aug-2019','DD-Mon-YY') and to_date('01-Sep-2019','DD-Mon-YY')
+#                                    AND orig_amt > 0.09
+#                                    AND brnd_id IN ('311','312','313','314','315','316','112','111','3720','3721','317','318','319','320')
+#                                    order by txn_dt desc
+#                                    "))
+
+
+#Date Formating
+#vpc_Aug_19$TXN_DT <- strptime(as.character(vpc_Aug_19$TXN_DT), "%Y-%m-%d")
+#vpc_Aug_19$TXN_DT <- format(vpc_Aug_19$TXN_DT, "%Y/%m/%d")
+
+#write.csv(vpc_Aug_19, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/vpc_Aug_19.csv")
+
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#merchantvisualisation_today <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/merchantvisualisation_today.csv")
+
+vpc<- rbind(vpc_Apr_19,vpc_May_19,vpc_Jun_19,firsthalfvpc_Jul_19,secondhalfvpc_Jul_19,vpc_Aug_19,vpc_Sep_19,vpc_Oct_19)
+vpc[,40] = toupper(vpc[,40])
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# double charged ncident happened on 16th Sep between 1600hrs to 2043hrs
+# Do not have identifier to exclude, thus have extracted the faulty txn ID & do manual exclusion
+
+txn_id<-read.csv("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/Deon/16th_Sep_2019_VPC_Payment_Issue/txn_id_to_exclude.csv", stringsAsFactors = FALSE)
+vpc <- anti_join(vpc,txn_id, by = c('TXN_ID' = 'TXN_ID'))
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#write.csv(vpc,file= "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc.csv", row.names = FALSE)
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Read csv file from folder which is SQL queries
+#vpcdailyvisualisation <- read.csv(file="C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc.csv")
+vpcdailyvisualisation <- vpc
+vpcdailyvisualisation$X <- NULL
+
+vpcdailyvisualisation<-cSplit(vpcdailyvisualisation, 'EXTRA_INFO1', sep="|", type.convert=FALSE)
+vpcdailyvisualisation <- mutate(vpcdailyvisualisation, MERCHANT_NAME_UPCASE = toupper(EXTRA_INFO1_07))
+colnames(vpcdailyvisualisation)[49]<- "MCCnumber"
+
+# Read metadata (This is the list of all Merchants)
+merchantMapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/VPC Close Loop Legend.xlsx", "Closed loop legend")
+colnames(merchantMapping)[1]<- "Merchant_outlets"
+merchantMapping <- mutate(merchantMapping, MERCHANT_OUTLETS = toupper(Merchant_outlets))
+merchantMapping <- merchantMapping[!duplicated(merchantMapping$MERCHANT_OUTLETS),]
+
+MCCmapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/VPC Close Loop Legend.xlsx", "MCC legend")
+MCCmapping <- mutate(MCCmapping, `MCC` = as.character(MCC))
+MCCmapping <- MCCmapping[!duplicated(MCCmapping),]
+# Join metadata(nerchant & outlet) to SQL csv file
+vpcmappedMerchantData <- left_join(vpcdailyvisualisation, merchantMapping, by = c("MERCHANT_NAME_UPCASE" = "MERCHANT_OUTLETS"))
+vpcmappedMerchantData<- vpcmappedMerchantData[-c(65:67)]
+vpcmappedMerchantData <- left_join(vpcmappedMerchantData, MCCmapping, by = c("MCCnumber" = "MCC"))
+
+#Visa Online Data
+vpconlinevisualisation<-  filter(vpcmappedMerchantData, ORIG_AMT >=0.1 & SVC_CLASS_NAME == "ISO8583 Visa Online" | SVC_CLASS_NAME == "ISO8583 Apple Pay Online" |SVC_CLASS_NAME == "ISO8583 Apple Pay Online International" |SVC_CLASS_NAME == "ISO8583 Visa Online International", DATA_TXN_RFND== "False")
+
+
+#Visa Paywave Data
+vpcpaywavevisualisation<- filter(vpcmappedMerchantData, ORIG_AMT >=0.1 & SVC_CLASS_NAME == "ISO8583 Visa Paywave" | SVC_CLASS_NAME == "ISO8583 Apple Pay Paywave" | SVC_CLASS_NAME == "ISO8583 Apple Pay Paywave International"| SVC_CLASS_NAME == "ISO8583 Visa Paywave International", DATA_TXN_RFND== "False")
+
+
+#Extracting Merchant with #NA
+# Get unmapped brands/Channels (Those with Channels=NA)
+unmappedvpcMerchantData <- filter(vpcmappedMerchantData, is.na(Merchant) & SVC_CLASS_NAME!="mCashVPCAdjustmentIn" & SVC_CLASS_NAME!="mCashVPCAdjustmentOut")
+unmappedvpcMerchantData<- subset(unmappedvpcMerchantData,select=c(EXTRA_INFO1_07))
+unmappedvpcMerchantData <- data.frame(unmappedvpcMerchantData[!duplicated(unmappedvpcMerchantData$EXTRA_INFO1_07),])
+#write.csv(unmappedvpcMerchantData, "C:/Users/P1317534/Desktop/Dan WTM/Dashboard Files/navpcmerchants.csv")
+
+rm("MCCmapping","merchantMapping","vpcdailyvisualisation","vpcmappedMerchantData")
+
+#Mapping
+merchantMapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/VPC Close Loop Legend.xlsx", "Closed loop legend")
+colnames(unmappedvpcMerchantData)[1] <- "Merchant outlets"
+unmappedvpcMerchantData$`Closed loop merchants` <- NA
+unmappedvpcMerchantData$`Merchant` <- NA
+unmappedvpcMerchantData$`MCC` <- NA
+
+#Top Few
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%PP*%"] <- "Paypal"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%GRAB%"] <- "GrabTaxi Pte Ltd"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%Redmart%"] <- "Redmart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%RedMart%"] <- "Redmart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%PARKING%"] <- "Parking.sg"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%GOOGLE%"] <- "Google Play"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%FACEBK%"] <- "Facebook"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%SPOTIFY%"] <- "Spotify"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%LAZADA%"] <- "Lazada"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%AMZN%"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%CAROUPAY%"] <- "Carousell"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%GNC%"] <- "GNC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%GRAMMARLY%"] <- "Grammarly"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%GSC%"] <- "GSC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%HANIS CAFE%"] <- "Hanis Café"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%JETSTAR%"] <- "Jetstar"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%%M1%"] <- "M1"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%YA KUN%"] <- "Ya Kun"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%7-ELEVEN%"] <- "7 Eleven"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%BENGAWAN SOLO%"] <- "Bengawan Solo"#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BREADTALK"] <- "BreadTalk"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%EATSY%"] <- "Eatsy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%PASTAMANIA%"] <- "Pastamania"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%PET LOVERS CENTRE%"] <- "Pet Lovers Centre"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%POPULAR BOOK COMPANY%"] <- "Popular Bookstore"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%Traveloka%"] <- "Traveloka"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%KFC%"] <- "KFC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%7-Eleven%"] <- "7 Eleven"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%ACRAARN%"] <- "Acraarn"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%BOSSINI%"] <- "Bossini"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%COLES%"] <- "Coles"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%EXPEDIA%"] <- "Expedia"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%STARBUCKS COFFEE%"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%MCDONALD'S%"] <- "Mcdonald's"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%SHENGSIONG%"] <- "Sheng Siong"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%SMIGGLE SINGAPORE%"] <- "Smiggle"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%SPC%"] <- "SPC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%STARBUCKS COFFEE%"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%STARBUCKS%"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%THE BODY SHOP%"] <- "The Body Shop"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%TIMEZONE%"] <- "Timezone"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%UBER%"] <- "Uber"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%UNIQLO%"] <- "Uniqlo"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%Amazon.com%"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%EIGHTEEN CHEFS%"] <- "Eighteen Chefs"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%FLYSCOOT.COM%"] <- "Scoot"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAMOUS AMOS"] <- "Famous Amos"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOTELS.COM"] <- "Hotels.com"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "IMPERIAL TREASURE"] <- "Imperial Treasure Noodle House"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "INDIEGOGO"] <- "Indiegogo"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STRIDES REF"] <- "Strides Transportation"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AIRBNB"] <- "Airbnb"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MCDONALDS"] <- "McDonalds"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MINISO"] <- "Miniso"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SALADSTOP"] <- "Salad Stop"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GUARDIAN"] <- "Guardian"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HAI DI LAO"] <- "Hai Di Lao"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WATSON'S"] <- "Watsons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "NUH"] <- "National University Hospital"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SUSHI-TEI"] <- "Sushi Tei"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THAI EXPRESS"] <- "Thai Express"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THAI ODYSSEY"] <- "Thai Odyssey"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE AMINO BAR"] <- "The Amino Bar"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TOAST BOX"] <- "Toast Box"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BEE CHENG HIANG"] <- "Bee Cheng Hiang"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "VANIDAY"] <- "VANIDAY"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "INNISFREE"] <- "Innisfree"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MICROSOFT"] <- "Microsoft"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TURELAND"] <- "Tureland"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CATHAY CINEPLEX"] <- "Cathay Cineplexes"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CATHAY CINEPLEXES"] <- "Cathay Cineplexes"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DOROTHY PERKINS"] <- "Dorothy Perkins"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOCKHUA TONIC"] <- "Hockhua Tonic"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "IPAYMY"] <- "Ipaymy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PHOON HUAT"] <- "Phoon Huat"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SAFRA"] <- "SAFRA"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SMIGGLE"] <- "Smiggle"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DOROTHY PERKINS"] <- "Dorothy Perkins"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WATSONS"] <- "Watsons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DECATHLON"] <- "Decathlon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DIMBULAH COFFEE"] <- "Dimbulah"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DING TAI FUNG"] <- "Ding Tai Fung"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ECONSAVE SEI"] <- "Econsave Sei"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "POLYCLINICS"] <- "Polyclinic"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TESCO"] <- "Tesco"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE COFFEE BEAN"] <- "Coffee Bean"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE DAILY CUT"] <- "The Daily Cut"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THAILIOIR"] <- "Thailioir"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AWARE DOTION"] <- "Aware Dotion"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DYMITEMARKETING"] <- "Dymitemarketing"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "INTERTIOL FOOD HALL"] <- "Intertiol Food Hall"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "JOLLIBEAN"] <- "Jollibean"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOM-WPD"] <- "Ministry of Manpower"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EU YAN SANG"] <- "Eu Yan Sang"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WOOLWORTHS"] <- "Wool Worths"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WIX.COM"] <- "WIX"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TTSH"] <- "Tan Tock Seng Hospital"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SWEE HENG BAKERY"] <- "Swee Heng Bakery"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SHOPIFY"] <- "Shopify"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SAIZERIYA"] <- "Saizeriya"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PLAYSTATION"] <- "Playstation Network"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PIZZAHUT"] <- "Pizza Hut"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MINI TOONS"] <- "Mini Toons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "LLAO LLAO "] <- "Llao Llao"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AEON SMKT"] <- "Aeon Smkt"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ADIDAS"] <- "Adidas"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BANGKOK GEM"] <- "Bangkok Gem"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BANGKOK JAM"] <- "Bangkok Jam"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BEAUTY LANGUAGE"] <- "Beauty Language"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OPENTASTE"] <- "Open Taste"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Amazon"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Audible"] <- "Audible"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BERSHKA"] <- "Bershka"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CANDY EMPIRE"] <- "Candy Empire"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ESPRIT"] <- "Esprit"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "H&M"] <- "H&M"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HANIS CAFE"] <- "Hanis Café"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HANS"] <- "Han's Café"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CCBill.com"] <- "Ccbill"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ccbill.com"] <- "Ccbill"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COLD STORAGE"] <- "Cold Storage"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COURTS"] <- "Courts"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DON DON DONKI"] <- "Don Don Donki"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Dropbox"] <- "Dropbox"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MC THAI"] <- "MC Thai"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MELALEUCA"] <- "Medlaleuca"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOLPAY"] <- "MOLPay"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SUBWAY"] <- "Subway"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STARBUCKS"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "6IXTY 8IGHT"] <- "6ixty8ight"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BATA"] <- "Bata"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CANDYLICIOUS"] <- "Candylicious"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CARDUP"] <- "CardUp"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CardUp"] <- "CardUp"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BWMonastery"] <- "BWMonastery"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DELIFRANCE"] <- "Delifrance"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HAO MART"] <- "Hao Mart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "POPULAR BOOK COMPANY"] <- "Popular Bookstore"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SKEINPLAY.COM"] <- "Skeinplay"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TWELVE CUPCAKES"] <- "Twelve Cupcakes"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TWG TEA"] <- "TWG"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "VENUS BEAUTY"] <- "Venus Beauty"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GIVING.SG"] <- "Giving.sg"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ALDI STORES"] <- "Aldi Stores"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HARVEY NORMAN"] <- "Harvey Norman"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BUS/MRT"] <- "Transit"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AW LAB"] <- "Aw Lab"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BAGUS"] <- "Bagus Food Court"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "F.O.S"] <- "F.O.S"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "H & M"] <- "H & M"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "JAYA GROCER"] <- "Jaya Grocer"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MR D.I.Y"] <- "Mr Diy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MR DIY"] <- "Mr Diy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PUMA"] <- "Puma Sports"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Puma Sports"] <- "Puma Sports"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SKECHERS"] <- "Skechers"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TUK TUK CHA"] <- "Tuk Tuk Cha"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "YOOGANE "] <- "Yoogane"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Zara"] <- "Zara"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ZARA"] <- "Zara"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "(RASAPURA)"] <- "Rasapura Masters"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ALOHA POKE"] <- "Aloha Poke"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "A-ONE CLAYPOT HOUSE"] <- "A-One Claypot House"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ARROW COMMUNIATION"] <- "Arrow Communication"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ARTBOX"] <- "Artbox"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ASIAN POINT PTY LTD"] <- "Asian Point Pty Ltd"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ASICS"] <- "Asics"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BASKIN ROBBINS"] <- "Baskin Robbins"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BEST DENKI"] <- "Best Denki"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BOON TONG KEE"] <- "Boon Tong Kee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BOOST JUICE BARS"] <- "Boost Juice Bar"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BREADTALK"] <- "BreadTalk"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "C&P"] <- "Changi Airport"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHARLES & KEITH"] <- "CHARLES & KEITH"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHUTNEY MARY"] <- "Chutney Mary"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CLKBank"] <- "CLKBank"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DAL.KOMM COFFEE"] <- "Dal.Komm Coffee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "G2000"] <- "Wing Tai Clothings"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Google Play"] <- "Google Play"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOME-FIX"] <- "Home Fix"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HUSH PUPPIES"] <- "Hush Puppies"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Kindle Svcs"] <- "Kindle Svcs"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MC DONALD'S"] <- "Mc Donald's"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MENYA MUSASHI"] <- "Menya Mushashi"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOS BURGER"] <- "MOS Burger"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MYNEWS.COM"] <- "Mynews"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OLD STREET BAK KUT TEH"] <- "Old Street Bak Kut Teh"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OLDTOWN WHITE COFFEE"] <- "Oldtown White Coffee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SEOUL GARDEN"] <- "Seoul Garden"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SGH"] <- "Singapore General Hospital"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SHENG KEE"] <- "Sheng Kee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SINGAPOREAI"] <- "Singapore Airlines"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SingPost"] <- "Singpost"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DISCORD"] <- "Discord"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "KOUFU"] <- "Koufu"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AJISEN RAMEN"] <- "Ajisen Ramen"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AMZ_SD"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COLLIN'S"] <- "Collins Grille"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CEDELE"] <- "Cedele"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CLKBANK*COM"] <- "CLKBank"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DIMBULAH"] <- "Dimbulah"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EPOCH.COM"] <- "Epoch"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAMILYMART"] <- "Familymart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOTHERCARE"] <- "Mothercare"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "NTUC CLUB"] <- "NTUC Club"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PA 2019"] <- "Others"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PARADISE DYNASTY"] <- "Paradise Dynasty"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SPRINT-CASS"] <- "Sprint-Cass"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CONVERSE"] <- "Converse"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COUNTDOWN"] <- "Countdown"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FOODPANDA"] <- "Foodpanda"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FOOT LOCKER"] <- "Foot Locker"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OLD CHANG KEE"] <- "Old Chang Kee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SUPERDRY"] <- "Superdry"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TIM HORTONS"] <- "Tim Hortons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOTELS.COM"] <- "Hotels.com"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHALLENGER"] <- "Challenger"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CRISTOFORI MUSIC"] <- "Cristofori Music School"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+
+
+
+
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%PAYPAL%"] <- "Paypal"
+
+#Top Few without %
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%PP*%"] <- "Paypal"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GRAB"] <- "GrabTaxi Pte Ltd"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Redmart"] <- "Redmart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "RedMart"] <- "Redmart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PARKING"] <- "Parking.sg"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GOOGLE"] <- "Google Play"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FACEBK"] <- "Facebook"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SPOTIFY"] <- "Spotify"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "LAZADA"] <- "Lazada"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AMZN"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CAROUPAY"] <- "Carousell"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GNC"] <- "GNC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GRAMMARLY"] <- "Grammarly"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GSC"] <- "GSC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HANIS CAFE"] <- "Hanis Café"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "JETSTAR"] <- "Jetstar"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "%M1"] <- "M1"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "YA KUN"] <- "Ya Kun"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "7-ELEVEN"] <- "7 Eleven"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BENGAWAN SOLO"] <- "Bengawan Solo"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PASTAMANIA"] <- "Pastamania"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PET LOVERS CENTRE"] <- "Pet Lovers Centre"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "POPULAR BOOK COMPANY"] <- "Popular Bookstore"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Traveloka"] <- "Traveloka"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "KFC"] <- "KFC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "7-Eleven"] <- "7 Eleven"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ACRAARN"] <- "Acraarn"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BOSSINI"] <- "Bossini"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COLES"] <- "Coles"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EXPEDIA"] <- "Expedia"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STARBUCKS COFFEE"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MCDONALD'S"] <- "Mcdonald's"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SHENGSIONG"] <- "Sheng Siong"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SMIGGLE SINGAPORE"] <- "Smiggle"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SPC"] <- "SPC"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STARBUCKS COFFEE"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STARBUCKS"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE BODY SHOP"] <- "The Body Shop"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TIMEZONE"] <- "Timezone"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "UBER"] <- "Uber"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "UNIQLO"] <- "Uniqlo"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Amazon.com"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EIGHTEEN CHEFS"] <- "Eighteen Chefs"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FLYSCOOT.COM"] <- "Scoot"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAMOUS AMOS"] <- "Famous Amos"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOTELS.COM"] <- "Hotels.com"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "IMPERIAL TREASURE"] <- "Imperial Treasure Noodle House"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "INDIEGOGO"] <- "Indiegogo"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STRIDES REF"] <- "Strides Transportation"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AIRBNB"] <- "Airbnb"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MCDONALDS"] <- "McDonalds"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MINISO"] <- "Miniso"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SALADSTOP"] <- "Salad Stop"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GUARDIAN"] <- "Guardian"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HAI DI LAO"] <- "Hai Di Lao"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WATSON'S"] <- "Watsons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "NUH"] <- "National University Hospital"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SUSHI-TEI"] <- "Sushi Tei"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THAI EXPRESS"] <- "Thai Express"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THAI ODYSSEY"] <- "Thai Odyssey"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE AMINO BAR"] <- "The Amino Bar"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TOAST BOX"] <- "Toast Box"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BEE CHENG HIANG"] <- "Bee Cheng Hiang"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "VANIDAY"] <- "VANIDAY"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "INNISFREE"] <- "Innisfree"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MICROSOFT"] <- "Microsoft"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TURELAND"] <- "Tureland"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CATHAY CINEPLEXES"] <- "Cathay Cineplexes"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CATHAY CINEPLEXES"] <- "Cathay Cineplexes"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DOROTHY PERKINS"] <- "Dorothy Perkins"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOCKHUA TONIC"] <- "Hockhua Tonic"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "IPAYMY"] <- "Ipaymy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PHOON HUAT"] <- "Phoon Huat"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SAFRA"] <- "SAFRA"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SMIGGLE"] <- "Smiggle"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DOROTHY PERKINS"] <- "Dorothy Perkins"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WATSONS"] <- "Watsons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DECATHLON"] <- "Decathlon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DIMBULAH COFFEE"] <- "Dimbulah"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DING TAI FUNG"] <- "Ding Tai Fung"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ECONSAVE SEI"] <- "Econsave Sei"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "POLYCLINICS"] <- "Polyclinic"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TESCO"] <- "Tesco"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE COFFEE BEAN"] <- "Coffee Bean"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THE DAILY CUT"] <- "The Daily Cut"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "THAILIOIR"] <- "Thailioir"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AWARE DOTION"] <- "Aware Dotion"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DYMITEMARKETING"] <- "Dymitemarketing"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "INTERTIOL FOOD HALL"] <- "Intertiol Food Hall"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "JOLLIBEAN"] <- "Jollibean"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOM-WPD"] <- "Ministry of Manpower"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EU YAN SANG"] <- "Eu Yan Sang"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WOOLWORTHS"] <- "Wool Worths"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "WIX.COM"] <- "WIX"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TTSH"] <- "Tan Tock Seng Hospital"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SWEE HENG BAKERY"] <- "Swee Heng Bakery"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SHOPIFY"] <- "Shopify"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SAIZERIYA"] <- "Saizeriya"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PLAYSTATION"] <- "Playstation Network"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PIZZAHUT"] <- "Pizza Hut"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MINI TOONS"] <- "Mini Toons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "LLAO LLAO "] <- "Llao Llao"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AEON SMKT"] <- "Aeon Smkt"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ADIDAS"] <- "Adidas"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BANGKOK GEM"] <- "Bangkok Gem"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BANGKOK JAM"] <- "Bangkok Jam"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BEAUTY LANGUAGE"] <- "Beauty Language"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OPENTASTE"] <- "Open Taste"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Amazon"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Audible"] <- "Audible"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BERSHKA"] <- "Bershka"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CANDY EMPIRE"] <- "Candy Empire"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ESPRIT"] <- "Esprit"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "H&M"] <- "H&M"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HANIS CAFE"] <- "Hanis Café"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HANS"] <- "Han's Café"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CCBill.com"] <- "Ccbill"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ccbill.com"] <- "Ccbill"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COLD STORAGE"] <- "Cold Storage"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DON DON DONKI"] <- "Don Don Donki"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Dropbox"] <- "Dropbox"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MC THAI"] <- "MC Thai"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MELALEUCA"] <- "Medlaleuca"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOLPAY"] <- "MOLPay"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SUBWAY"] <- "Subway"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "STARBUCKS"] <- "Starbucks"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "6IXTY 8IGHT"] <- "6ixty8ight"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BATA"] <- "Bata"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CANDYLICIOUS"] <- "Candylicious"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CARDUP"] <- "CardUp"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CardUp"] <- "CardUp"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BWMonastery"] <- "BWMonastery"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DELIFRANCE"] <- "Delifrance"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HAO MART"] <- "Hao Mart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "POPULAR BOOK COMPANY"] <- "Popular Bookstore"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SKEINPLAY.COM"] <- "Skeinplay"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TWELVE CUPCAKES"] <- "Twelve Cupcakes"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TWG TEA"] <- "TWG"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "VENUS BEAUTY"] <- "Venus Beauty"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "GIVING.SG"] <- "Giving.sg"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ALDI STORES"] <- "Aldi Stores"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HARVEY NORMAN"] <- "Harvey Norman"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BUS/MRT"] <- "Transit"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AW LAB"] <- "Aw Lab"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BAGUS"] <- "Bagus Food Court"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "F.O.S"] <- "F.O.S"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "H & M"] <- "H & M"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "JAYA GROCER"] <- "Jaya Grocer"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MR D.I.Y"] <- "Mr Diy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MR DIY"] <- "Mr Diy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PUMA"] <- "Puma Sports"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Puma Sports"] <- "Puma Sports"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SKECHERS"] <- "Skechers"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TUK TUK CHA "] <- "Tuk Tuk Cha"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "YOOGANE"] <- "Yoogane"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ZARA"] <- "Zara"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Zara"] <- "Zara"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "(RASAPURA)"] <- "Rasapura Masters"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ALOHA POKE"] <- "Aloha Poke"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "A-ONE CLAYPOT HOUSE"] <- "A-One Claypot House"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ARROW COMMUNIATION"] <- "Arrow Communication"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ARTBOX"] <- "Artbox"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ASIAN POINT PTY LTD"] <- "Asian Point Pty Ltd"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "ASICS"] <- "Asics"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BASKIN ROBBINS"] <- "Baskin Robbins"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BEST DENKI"] <- "Best Denki"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BOON TONG KEE"] <- "Boon Tong Kee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BOOST JUICE BARS"] <- "Boost Juice Bar"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "BREADTALK"] <- "BreadTalk"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "C&P"] <- "Changi Airport"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHARLES & KEITH"] <- "CHARLES & KEITH"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHUTNEY MARY"] <- "Chutney Mary"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CLKBank"] <- "CLKBank"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DAL.KOMM COFFEE"] <- "Dal.Komm Coffee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "G2000"] <- "Wing Tai Clothings"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Google Play"] <- "Google Play"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOME-FIX"] <- "Home Fix"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HUSH PUPPIES"] <- "Hush Puppies"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "Kindle Svcs"] <- "Kindle Svcs"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MC DONALD'S"] <- "Mc Donald's"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MENYA MUSASHI"] <- "Menya Mushashi"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MYNEWS.COM"] <- "Mynews"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OLD STREET BAK KUT TEH"] <- "Old Street Bak Kut Teh"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OLDTOWN WHITE COFFEE"] <- "Oldtown White Coffee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SEOUL GARDEN"] <- "Seoul Garden"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SGH"] <- "Singapore General Hospital"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SHENG KEE"] <- "Sheng Kee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SINGAPOREAI"] <- "Singapore Airlines"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SingPost"] <- "Singpost"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DISCORD"] <- "Discord"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "KOUFU"] <- "Koufu"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AJISEN RAMEN"] <- "Ajisen Ramen"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "AMZ_SD"] <- "Amazon"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COLLIN'S"] <- "Collins Grille"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CEDELE"] <- "Cedele"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CLKBANK*COM"] <- "CLKBank"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "DIMBULAH"] <- "Dimbulah"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EPOCH.COM"] <- "Epoch"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAMILYMART"] <- "Familymart"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "MOTHERCARE"] <- "Mothercare"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "NTUC CLUB"] <- "NTUC Club"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PA 2019"] <- "Others"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PARADISE DYNASTY"] <- "Paradise Dynasty"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SPRINT-CASS"] <- "Sprint-Cass"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CONVERSE"] <- "Converse"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "COUNTDOWN"] <- "Countdown"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FITNESS FIRST"] <- "Fitness First"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FOODPANDA"] <- "Foodpanda"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FOOT LOCKER"] <- "Foot Locker"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "OLD CHANG KEE"] <- "Old Chang Kee"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "SUPERDRY"] <- "Superdry"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "TIM HORTONS"] <- "Tim Hortons"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOTELSCOM"] <- "Hotels.com"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHALLENGER"] <- "Challenger"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CRISTOFORI MUSIC"] <- "Cristofori Music School"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+
+
+
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "PAYPAL"] <- "Paypal"
+
+#unmappedvpcMerchantData <- rbind(merchantMapping, unmappedvpcMerchantData)
+
+# Changing na to blanks
+#unmappedvpcMerchantData[is.na(unmappedvpcMerchantData)] <- ""
+
+
+#Write VPC unmapped
+write.csv(unmappedvpcMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/VPCunmapped.csv")
+
+
+#-------------------------------------------------------------------------------------------------------------
+
+
+#VIA 
+# Read csv file from folder which is SQL queries
+#viavisualisation <- read.csv(file="C:/Users/CP666383/Desktop/Power BI Reports/VPC/via.csv")
+viavisualisation <- dbGetQuery(conn, paste("SELECT *
+                                      FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+                                           WHERE STAT IN ('PST')
+                                           AND TXN_DT BETWEEN to_date('01-Jan-2019','DD-Mon-YY') AND to_date('01-Nov-2019','DD-Mon-YY')
+                                           AND orig_amt > 0
+                                           AND data_txn_rfnd = 'False'
+                                           AND brnd_id IN ('3900','3901','3902','3903')
+                                           ORDER BY txn_dt DESC
+                                           "))
+
+viavisualisation$TXN_DT <- strptime(as.character(viavisualisation$TXN_DT), "%Y-%m-%d")
+viavisualisation$TXN_DT <- format(viavisualisation$TXN_DT, "%Y/%m/%d")
+
+#-------------------------------------------------------------------------------------------------------------
+
+viavisualisation<-cSplit(viavisualisation, 'EXTRA_INFO1', sep="|", type.convert=FALSE)
+viavisualisation <- mutate(viavisualisation, MERCHANT_NAME_UPCASE = toupper(EXTRA_INFO1_07))
+#DailyMerchant <- viavisualisation[,57, drop=FALSE]
+
+
+# Read metadata (This is the list of all Merchants)
+VIAMerchantMapping <- read_xlsx("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/VIA Merchants Legend.xlsx")
+colnames(VIAMerchantMapping)[1]<- "Merchant_outlets"
+VIAMerchantMapping <- mutate(VIAMerchantMapping, MERCHANT_OUTLETS = toupper(Merchant_outlets))
+VIAMerchantMapping <- VIAMerchantMapping[!duplicated(VIAMerchantMapping$MERCHANT_OUTLETS),]
+
+
+# Join metadata(nerchant & outlet) to SQL csv file
+VIAmappedMerchantData <- left_join(viavisualisation, VIAMerchantMapping, by = c("MERCHANT_NAME_UPCASE" = "MERCHANT_OUTLETS"))
+#VIAmappedMerchantData<- VIAmappedMerchantData[-c(65:67)]
+#VIAmappedMerchantData <- left_join(VIAmappedMerchantData, MCCmapping, by = c("MCCnumber" = "MCC"))
+
+#Visa Online Data
+#vpconlinevisualisation<-  filter(VIAmappedMerchantData, ORIG_AMT >=0.1 & SVC_CLASS_NAME == "ISO8583 Visa Online" | SVC_CLASS_NAME == "ISO8583 Visa Online International", DATA_TXN_RFND== "False")
+
+
+#Visa Paywave Data
+#vpcpaywavevisualisation<- filter(VIAmappedMerchantData, ORIG_AMT >=0.1 & SVC_CLASS_NAME == "ISO8583 Visa Paywave" | SVC_CLASS_NAME == "ISO8583 Visa Paywave International", DATA_TXN_RFND== "False")
+
+
+#Extracting Merchant with #NA
+# Get unmapped brands/Channels (Those with Channels=NA)
+unmappedVIAMerchantData <- filter(VIAmappedMerchantData, is.na(Merchant))
+unmappedVIAMerchantData<- subset(unmappedVIAMerchantData,select=c(EXTRA_INFO1_07))
+unmappedVIAMerchantData <- data.frame(unmappedVIAMerchantData[!duplicated(unmappedVIAMerchantData$EXTRA_INFO1_07),])
+
+#Write VIA unmapped
+write.csv(unmappedVIAMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/viaunmapped.csv")
+
+#Remove MCC
+vpconlinevisualisation$MCC <-NULL
+vpcpaywavevisualisation$MCC <-NULL
+#vpcpaywavevisualisation$X <-NULL
+colnames(vpconlinevisualisation)[63] <- "Closed_loop_merchants"
+colnames(vpcpaywavevisualisation)[63] <- "Closed_loop_merchants"
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Merchant Country
+ISO <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/Accounts Details/ISO_Country_Code.csv", stringsAsFactors = FALSE)
+vpcpaywavevisualisation <- left_join(vpcpaywavevisualisation, ISO, by = c("EXTRA_INFO1_09" = "Code.Value"))
+colnames(vpcpaywavevisualisation)[66] <- "Merchant_Country"
+
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#vpconlinevisualisation <- read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpconlinevisualisation.csv")
+#vpcpaywavevisualisation <- read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpcpaywavevisualisation.csv")
+
+#Write for VPC
+write.csv(vpconlinevisualisation, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpconlinevisualisation.csv")
+write.csv(vpcpaywavevisualisation, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpcpaywavevisualisation.csv")
+
+# Write to Sharedrive
+#write.csv(vpconlinevisualisation, "X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/Dash Reports Files/vpconlinevisualisation.csv")
+#write.csv(vpcpaywavevisualisation, "X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/Dash Reports Files/vpcpaywavevisualisation.csv")
+
+
+#Write for VIA
+write.csv(VIAmappedMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/VIAVisualisation.csv")
+#write.csv(unmappedVIAMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/VIAUnmapped.csv")
