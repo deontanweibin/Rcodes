@@ -1,12 +1,82 @@
-# Dependencies
 rm(list=ls())
-library(readxl)
+
+#Dependencies
+options(java.parameters = "-Xmx8048m")
+library(RJDBC)
+library(dbplyr)
 library(dplyr)
+library(sqldf)
+library(openxlsx)
+library(readxl)
+library(lubridate)
+library(reshape2)
+library(xlsx)
+library(data.table)
 library(taskscheduleR)
 
-#myscript <- "C:\\Users\\CP666383\\Desktop\\Automation\\p2m.R"
-#taskscheduler_create(taskname="p2mscript",rscript=myscript,schedule="ONCE",starttime="19:01")
+#set up Oracle driver for live connection with Oracle SQL developer (please adjust filepath below to your desktop's)
+jdbcDriver <- JDBC("oracle.jdbc.OracleDriver", classPath = "C:\\Users\\CP666383\\Downloads\\ojdbc6.jar")
 
+#pull out all tables available as sense-check
+conn <- dbConnect(jdbcDriver, "jdbc:oracle:thin:@//dw6prd-scan.app.vic:1831/EDWPRD", "dshdm", "ds1dm_99")
+dbListTables(conn)
+
+
+Merchantvisualisation_Nov_2019 <- dbGetQuery(conn, paste("SELECT *
+                                                          FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+                                                          WHERE SVC_CLASS_NAME IN('P2M',
+                                                          'P2M Pinless')
+                                                          AND STAT = 'PST'
+                                                          AND txn_dt BETWEEN trunc (sysdate, 'mm')/*current month*/ AND SYSDATE
+                                                          and orig_amt > 0.09
+                                                          and data_txn_rfnd = 'False'
+                                                          order by txn_dt desc
+                                                          "))
+
+
+Merchantvisualisation_Nov_2019$TXN_DT <- strptime(as.character(Merchantvisualisation_Nov_2019$TXN_DT), "%Y-%m-%d")
+Merchantvisualisation_Nov_2019$TXN_DT <- format(Merchantvisualisation_Nov_2019$TXN_DT, "%Y/%m/%d")
+
+#write.csv(Merchantvisualisation_Oct_2019, file="C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Oct_2019.csv", row.names = FALSE)
+
+#Read Previous Month------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Merchantvisualisation_Sep_2019 <- dbGetQuery(conn, paste("SELECT *
+#                                                          FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+#                                                          WHERE SVC_CLASS_NAME IN('P2M',
+#                                                          'P2M Pinless')
+#                                                          AND STAT = 'PST'
+#                                                          AND txn_dt BETWEEN trunc (sysdate-1, 'mm')/*current month*/ AND SYSDATE
+#                                                          and orig_amt > 0.09
+#                                                          and data_txn_rfnd = 'False'
+#                                                          order by txn_dt desc
+#                                                          "))
+
+
+#Merchantvisualisation_Sep_2019$TXN_DT <- strptime(as.character(Merchantvisualisation_Sep_2019$TXN_DT), "%Y-%m-%d")
+#Merchantvisualisation_Sep_2019$TXN_DT <- format(Merchantvisualisation_Sep_2019$TXN_DT, "%Y/%m/%d")
+
+#write.csv(Merchantvisualisation_Sep_2019, file="C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Sep_2019.csv", row.names = FALSE)
+
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#p2m overall
+
+p2moverall <- dbGetQuery(conn, paste("SELECT to_char(TXN_DT, 'MON-YYYY') as Month,to_char(txn_dt, 'YYYYMM') as MonthNo , count(ORIG_AMT) AS Tc, sum (ORIG_AMT) AS Tv
+                                      FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
+                                      WHERE SVC_CLASS_NAME IN('P2M',
+                                                        'P2M Pinless')
+                                      AND STAT = 'PST'
+                                      AND TXN_DT between to_date('01-Jan-2018','DD-Mon-YY') and to_date('1-Dec-2019','DD-Mon-YY')
+                                      GROUP BY to_char(TXN_DT, 'MON-YYYY'),to_char(txn_dt, 'YYYYMM')
+                                      ORDER BY to_char(txn_dt, 'YYYYMM') ASC
+                                      "))
+
+write.csv(p2moverall,file= "X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/Danial/Merchant/P2M Overall.csv", row.names = FALSE)
+
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Binding
 
@@ -16,17 +86,19 @@ library(taskscheduleR)
 #Merchantvisualisation_Nov_2018 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Nov_2018.csv")
 #Merchantvisualisation_Dec_2018 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Dec_2018.csv")
 #Merchantvisualisation_Jan_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Jan_2019.csv")
-Merchantvisualisation_Feb_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Feb_2019.csv")
-Merchantvisualisation_Mar_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Mar_2019.csv")
+#Merchantvisualisation_Feb_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Feb_2019.csv")
+#Merchantvisualisation_Mar_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Mar_2019.csv")
 Merchantvisualisation_Apr_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Apr_2019.csv")
 Merchantvisualisation_May_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_May_2019.csv")
 Merchantvisualisation_June_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_June_2019.csv")
 Merchantvisualisation_Jul_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Jul_2019.csv")
-
+Merchantvisualisation_Aug_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Aug_2019.csv")
+Merchantvisualisation_Sep_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Sep_2019.csv")
+Merchantvisualisation_Oct_2019 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/Merchantvisualisation_Oct_2019.csv")
 
 #merchantvisualisation_today <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/merchantvisualisation_today.csv")
 
-merchantvisualisation<- rbind(Merchantvisualisation_Feb_2019,Merchantvisualisation_Mar_2019, Merchantvisualisation_Apr_2019,Merchantvisualisation_May_2019,Merchantvisualisation_June_2019,Merchantvisualisation_Jul_2019)
+merchantvisualisation<- rbind(Merchantvisualisation_Apr_2019,Merchantvisualisation_May_2019,Merchantvisualisation_June_2019,Merchantvisualisation_Jul_2019,Merchantvisualisation_Aug_2019,Merchantvisualisation_Sep_2019,Merchantvisualisation_Oct_2019,Merchantvisualisation_Nov_2019)
 
 write.csv(merchantvisualisation,file= "C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation.csv")
 
@@ -116,7 +188,7 @@ Refunds <- filter(MDR, SVC_CLASS_NAME == "P2M" | SVC_CLASS_NAME == "P2M Pinless"
 cashbin <- filter(mappedMerchantData, SVC_CLASS_NAME == "P2P")
 cashbin <- filter(cashbin, `P2P Test` == "No")
 cashbin <- summarize(cashbin, ORIG_AMT_COUNT = n(), ORIG_AMT_SUM = sum(ORIG_AMT))
-  
+
 # Remove X
 dailyP2M[1:1] <-list(NULL)
 
@@ -128,9 +200,23 @@ dailyP2M<-dailyP2M[!(dailyP2M$Channel=="N/A"),]
 
 rm("cashbin","cashinMapping","fullMerchantMapping","mappedMerchantData","MDR","MDRPivot","merchantData","merchantMapping","merchantvisualisation","outletMapping","P2MOutlet","P2MTotal","p2pTestMSISDN","Refunds")
 
+#rbind to reporting master list
+
+#reportingmasterlist <-read_excel("X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/0. Reporting Master List.xlsx")
+
+#colnames(unmappedMerchantData) <- "Merchant Name"
+#unmappedMerchantData <- c()
+#reportingmasterlist<- rbind(reportingmasterlist,unmappedMerchantData)
+
 
 #Write to csv unmapped merchants- TO CHECK AND ADD IN REPORTING MASTER LIST
 write.csv(unmappedMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/p2m/nap2mmerchants.csv")
 
 # Exporting data files into csv format
 write.csv(dailyP2M, file="C:/Users/CP666383/Desktop/Power BI Reports/p2m/dailyP2Mvisualisation.csv")
+
+# Extract date range
+
+#dailyP2M_v2 <- dailyP2M
+#dailyP2M_v2[date>="2013-08-02" & date<="2013-11-01"]
+#write.csv(dailyP2M, file="X:/Group Digital Life/mCommerce/New Singtel Dash Reporting/Dash Reports Files/dailyP2Mvisualisation.csv")
