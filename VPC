@@ -28,13 +28,15 @@ library(taskscheduleR)
 #vpc_Jan_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jan19.csv", stringsAsFactors = FALSE)
 #vpc_Feb_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/feb19.csv", stringsAsFactors = FALSE)
 #vpc_Mar_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/mar19.csv", stringsAsFactors = FALSE)
-vpc_Apr_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/apr19.csv", stringsAsFactors = FALSE)
-vpc_May_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/may19.csv", stringsAsFactors = FALSE)
+#vpc_Apr_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/apr19.csv", stringsAsFactors = FALSE)
+#vpc_May_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/may19.csv", stringsAsFactors = FALSE)
 vpc_Jun_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jun19.csv", stringsAsFactors = FALSE)
 firsthalfvpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/1sthalfjul19.csv", stringsAsFactors = FALSE)
 secondhalfvpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/2ndhalfjul19.csv", stringsAsFactors = FALSE)
 vpc_Aug_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/aug19.csv", stringsAsFactors = FALSE)
 vpc_Sep_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/sep19.csv", stringsAsFactors = FALSE)
+vpc_Oct_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/oct19.csv", stringsAsFactors = FALSE)
+#vpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jul19.csv", stringsAsFactors = FALSE)
 #vpc_Jul_19 <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/jul19.csv", stringsAsFactors = FALSE)
 
 
@@ -46,7 +48,7 @@ conn <- dbConnect(jdbcDriver, "jdbc:oracle:thin:@//dw6prd-scan.app.vic:1831/EDWP
 dbListTables(conn)
 
 
-vpc_Oct_19 <- dbGetQuery(conn, paste("SELECT *
+vpc_Nov_19 <- dbGetQuery(conn, paste("SELECT *
                                      FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
                                      WHERE STAT in ('PST','SBM')
                                      AND txn_dt BETWEEN trunc (sysdate, 'mm')/*current month*/ AND SYSDATE
@@ -55,37 +57,35 @@ vpc_Oct_19 <- dbGetQuery(conn, paste("SELECT *
                                      order by txn_dt desc
                                      "))
 
-vpc_Oct_19$TXN_DT <- strptime(as.character(vpc_Oct_19$TXN_DT), "%Y-%m-%d")
-vpc_Oct_19$TXN_DT <- format(vpc_Oct_19$TXN_DT, "%Y/%m/%d")
+vpc_Nov_19$TXN_DT <- strptime(as.character(vpc_Nov_19$TXN_DT), "%Y-%m-%d")
+vpc_Nov_19$TXN_DT <- format(vpc_Nov_19$TXN_DT, "%Y/%m/%d")
 
-#write.csv(vpc_Oct_19, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/oct19.csv", row.names = FALSE)
+#write.csv(vpc_Nov_19, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/nov19.csv", row.names = FALSE)
 #Previous Month------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-#Date Formating
-#vpc_Aug_19$TXN_DT <- strptime(as.character(vpc_Sep_19$TXN_DT), "%Y-%m-%d")
-#vpc_Aug_19$TXN_DT <- format(vpc_Sep_19$TXN_DT, "%Y/%m/%d")
 
-#vpc_Aug_19 <- dbGetQuery(conn, paste("SELECT *
+#vpc_Oct_19 <- dbGetQuery(conn, paste("SELECT *
 #                                     FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
 #                                    WHERE STAT in ('PST','SBM')
-#                                    AND TXN_DT between to_date('01-Aug-2019','DD-Mon-YY') and to_date('01-Sep-2019','DD-Mon-YY')
+#                                    AND TXN_DT between to_date('01-Oct-2019','DD-Mon-YY') and to_date('01-Nov-2019','DD-Mon-YY')
 #                                    AND orig_amt > 0.09
 #                                    AND brnd_id IN ('311','312','313','314','315','316','112','111','3720','3721','317','318','319','320')
 #                                    order by txn_dt desc
 #                                    "))
 
-#Date Formating
-#vpc_Aug_19$TXN_DT <- strptime(as.character(vpc_Aug_19$TXN_DT), "%Y-%m-%d")
-#vpc_Aug_19$TXN_DT <- format(vpc_Aug_19$TXN_DT, "%Y/%m/%d")
 
-#write.csv(vpc_Aug_19, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/vpc_Aug_19.csv")
+#Date Formating
+#vpc_Oct_19$TXN_DT <- strptime(as.character(vpc_Oct_19$TXN_DT), "%Y-%m-%d")
+#vpc_Oct_19$TXN_DT <- format(vpc_Oct_19$TXN_DT, "%Y/%m/%d")
+
+#write.csv(vpc_Oct_19, "C:/Users/CP666383/Desktop/Power BI Reports/VPC/vpc rbinding/oct19.csv", row.names = FALSE)
 
 
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #merchantvisualisation_today <-read.csv("C:/Users/CP666383/Desktop/Power BI Reports/p2m/merchantvisualisation_months/merchantvisualisation_today.csv")
 
-vpc<- rbind(vpc_Apr_19,vpc_May_19,vpc_Jun_19,firsthalfvpc_Jul_19,secondhalfvpc_Jul_19,vpc_Aug_19,vpc_Sep_19,vpc_Oct_19)
+vpc<- rbind(vpc_Jun_19,firsthalfvpc_Jul_19,secondhalfvpc_Jul_19,vpc_Aug_19,vpc_Sep_19,vpc_Oct_19,vpc_Nov_19)
 vpc[,40] = toupper(vpc[,40])
 #------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -367,7 +367,7 @@ unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %lik
 unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOTELS.COM"] <- "Hotels.com"
 unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHALLENGER"] <- "Challenger"
 unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CRISTOFORI MUSIC"] <- "Cristofori Music School"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
 #unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
 #unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
 #unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "EATSY"] <- "Eatsy"
@@ -595,21 +595,27 @@ unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %lik
 unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "HOTELSCOM"] <- "Hotels.com"
 unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CHALLENGER"] <- "Challenger"
 unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "CRISTOFORI MUSIC"] <- "Cristofori Music School"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
-#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "XERO GLOBAL"] <- "Xero"
+unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+#unmappedvpcMerchantData$Merchant[unmappedvpcMerchantData$`Merchant outlets` %like% "FAVEPAY"] <- "Fave by Groupon"
+
 
 
 
@@ -634,7 +640,7 @@ write.csv(unmappedvpcMerchantData, "C:/Users/CP666383/Desktop/Power BI Reports/V
 viavisualisation <- dbGetQuery(conn, paste("SELECT *
                                       FROM EDWDM.TEDW_SINGCASH_SALESJOURNAL_DOM
                                            WHERE STAT IN ('PST')
-                                           AND TXN_DT BETWEEN to_date('01-Jan-2019','DD-Mon-YY') AND to_date('01-Nov-2019','DD-Mon-YY')
+                                           AND TXN_DT BETWEEN to_date('01-Jan-2019','DD-Mon-YY') AND to_date('01-Dec-2019','DD-Mon-YY')
                                            AND orig_amt > 0
                                            AND data_txn_rfnd = 'False'
                                            AND brnd_id IN ('3900','3901','3902','3903')
