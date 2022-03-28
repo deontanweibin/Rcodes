@@ -1,0 +1,3 @@
+excel_file_with_path <- "C:/Users/myusername/Documents/file.xlsx"
+command <- paste("open excel", excel_file_with_path)
+system(command)
